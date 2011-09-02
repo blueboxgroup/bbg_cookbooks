@@ -18,10 +18,11 @@
 #
 
 include_recipe "build-essential"
+include_recipe "git"
 
 packages = case node[:platform]
   when "centos","redhat","fedora"
-    %w{patch zlib-devel openssl-devel readline-devel libyaml-devel libffi-devel git}
+    %w{patch zlib-devel openssl-devel readline-devel libyaml-devel libffi-devel}
   when "ubuntu","debian"
     %w{bison openssl libreadline5 libreadline-dev curl git-core zlib1g zlib1g-dev libssl-dev libsqlite3-0 libsqlite3-dev sqlite3 libxml2-dev}
   end
