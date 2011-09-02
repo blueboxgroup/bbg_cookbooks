@@ -17,6 +17,6 @@
 # limitations under the License.
 #
 
-package "ksh" do
-  action :install
+yum_package "ksh" do
+  arch node[:kernel][:machine]
 end
