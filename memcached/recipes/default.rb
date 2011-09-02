@@ -17,8 +17,6 @@
 # limitations under the License.
 #
 
-cache_size = ((node[:memory][:total] * 0.9375) / 1024) / 1024
-
 yum_package "memcached" do
   arch node[:kernel][:machine]
 end
@@ -33,9 +31,6 @@ template "/etc/sysconfig/memcached" do
   mode 0644
   owner "root"
   group "root"
-  variables(
-    :cache_size => cache_size
-  )
   action :create
   notifies :restart, "service[memcached]"
 end
