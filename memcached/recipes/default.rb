@@ -17,14 +17,8 @@
 # limitations under the License.
 #
 
-packages = [ "memcached" ]
-
-cache_size = ((node[:memory][:total] * 0.9375) / 1024) / 1024
-
-packages.each do |pkg|
-  package "#{pkg}" do
-    action :install
-  end
+yum_package "memcached" do
+  arch node[:kernel][:machine]
 end
 
 service "memcached" do
@@ -37,9 +31,6 @@ template "/etc/sysconfig/memcached" do
   mode 0644
   owner "root"
   group "root"
-  variables(
-    :cache_size => cache_size
-  )
   action :create
   notifies :restart, "service[memcached]"
 end

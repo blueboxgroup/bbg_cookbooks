@@ -17,10 +17,10 @@
 # limitations under the License.
 #
 
-packages = [ "ImageMagick" ]
+packages = %w{ImageMagick ImageMagick-devel ImageMagick-c++ ImageMagick-c++-devel}
 
 packages.each do |pkg|
-  package pkg do
-    action :install
+  yum_package pkg do
+    arch node[:kernel][:machine]
   end
 end

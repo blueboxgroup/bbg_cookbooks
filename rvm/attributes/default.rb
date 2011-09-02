@@ -17,5 +17,6 @@
 # limitations under the License.
 #
 
-default[:rvm][:rubies] = [ "" ]
-default[:rvm][:default] = ""
+default[:rvm][:rubies] = [ "ree-1.8.7-2011.03" ]
+default[:rvm][:default] = "ree-1.8.7-2011.03"
+default[:rvm][:users] = [ "deploy" ]

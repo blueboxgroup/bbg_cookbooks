@@ -18,8 +18,8 @@
 #
 
 %w(nfs-utils nfs-utils-lib portmap).each do |pkg|
-  package pkg do
-    action :install
+  yum_package pkg do
+    arch node[:kernel][:machine]
   end
 end
 

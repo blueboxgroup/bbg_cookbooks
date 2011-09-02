@@ -19,8 +19,8 @@
 
 include_recipe "erlang"
 
-package "rabbitmq-server" do
-  action :install
+yum_package "rabbitmq-server" do
+  arch node[:kernel][:machine]
 end
 
 service "rabbitmq-server" do

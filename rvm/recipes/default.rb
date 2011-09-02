@@ -18,27 +18,30 @@
 #
 
 include_recipe "build-essential"
+include_recipe "git"
 
 packages = case node[:platform]
   when "centos","redhat","fedora"
-    %w{gcc-c++ patch zlib-devel openssl-devel readline-devel libyaml-devel libffi-devel git}
+    %w{patch zlib-devel openssl-devel readline-devel libyaml-devel libffi-devel}.each do |pkg|
+      yum_package pkg do
+        arch node[:kernel][:machine]
+      end
+    end
   when "ubuntu","debian"
-    %w{bison openssl libreadline5 libreadline-dev curl git-core zlib1g zlib1g-dev libssl-dev libsqlite3-0 libsqlite3-dev sqlite3 libxml2-dev}
+    %w{bison openssl libreadline5 libreadline-dev curl git-core zlib1g zlib1g-dev libssl-dev libsqlite3-0 libsqlite3-dev sqlite3 libxml2-dev}.each do |pkg|
+      package pkg do
+        action :install
+      end
+    end
   end
-  
-packages.each do |pkg|
-  package pkg
 end
 
 bash "rvm-install" do
-  user "root"
   cwd "/tmp"
   code <<-EOH
-    wget --no-check-certificate http://www.github.com/wayneeseguin/rvm/raw/master/contrib/install-system-wide
-    bash install-system-wide
-    rm install-system-wide
+    /bin/bash < <(curl -s https://rvm.beginrescueend.com/install/rvm)
   EOH
-  not_if "[[ -x /usr/local/bin/rvm ]]"
+  creates "/usr/local/rvm"
 end
 
 cookbook_file "/etc/profile.d/rvm.sh" do
@@ -59,19 +62,32 @@ cookbook_file "/etc/rvmrc" do
   backup false
 end  
   
-node[:rvm][:rubies].each do |ruby|
-  execute "rvm-install-#{ruby}" do
-    # Install our various ruby versions.
-    command "/usr/local/bin/rvm install #{ruby}"
-    user "root"
-    # Unless we already have that version installed.
-    not_if "/usr/local/bin/rvm list | grep #{ruby}"
+# Add RVM users to RVM group.
+node[:rvm][:users].each do |user|
+  # Make sure the user(s) exist first.
+  # If a user was created during this Chef run, it will not exist in attributes.
+  # Check /etc/passwd as well.
+  if node[:etc][:passwd][user].nil? and ! %x[cat /etc/passwd].include?("\n#{user}") # Make sure the user(s) exist first.
+    log("#{user} doesn't exist! Can't add this user to RVM group.") { level :error }
+  else # Proceed.
+    group "rvm" do
+      members user
+      append true
+    end
   end
 end
 
+# Install our various rubies.
+node[:rvm][:rubies].each do |ruby|
+  log("Installing #{ruby} via RVM.") { level :info } # These installs take time so let's log the fact that we're starting the install.
+  execute "rvm-install-#{ruby}" do
+    command "/usr/local/rvm/bin/rvm install #{ruby}"
+    creates "/usr/local/rvm/rubies/#{ruby}"
+  end
+end
+
+# Set our default ruby.
 execute "rvm-set-default" do
-  # Set our default ruby install.
-  command "/usr/local/bin/rvm --default #{node[:rvm][:default]}"
-  # Unless the version is already set.
-  not_if "/usr/local/bin/rvm list default | grep #{node[:rvm][:default]}"
+  command "/usr/local/rvm/bin/rvm --default #{node[:rvm][:default]}"
+  not_if "/usr/local/rvm/bin/rvm list default | grep #{node[:rvm][:default]}"
 end
