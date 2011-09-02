@@ -17,6 +17,6 @@
 # limitations under the License.
 #
 
-package "git" do
-  action :install
+yum_package "git" do
+  arch node[:kernel][:machine]
 end
