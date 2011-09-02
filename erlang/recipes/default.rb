@@ -17,6 +17,6 @@
 # limitations under the License.
 #
 
-package "erlang" do
-  action :install
+yum_package "erlang" do
+  arch node[:kernel][:machine]
 end
