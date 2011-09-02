@@ -19,4 +19,4 @@
 
 default[:memcached][:port] = "11211"
 default[:memcached][:bindaddress] = "127.0.0.1"
-default[:memcached][:cache_size] = ((node[:memory][:total] * 0.9375) / 1024) / 1024
+default[:memcached][:cache_size] = "256"
