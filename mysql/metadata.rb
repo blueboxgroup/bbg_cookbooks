@@ -1,106 +1,132 @@
-maintainer       "Blue Box Group, LLC"
-maintainer_email "support@blueboxgrp.com"
-license          "Apache v2.0"
-description      "Installs/Configures mysql"
-long_description IO.read(File.join(File.dirname(__FILE__), 'README.rdoc'))
-version          "0.5.0"
+maintainer        "Opscode, Inc."
+maintainer_email  "cookbooks@opscode.com"
+license           "Apache 2.0"
+description       "Installs and configures mysql for client or server"
+long_description  IO.read(File.join(File.dirname(__FILE__), 'README.md'))
+version           "1.2.6"
+recipe            "mysql", "Includes the client recipe to configure a client"
+recipe            "mysql::client", "Installs packages required for mysql clients using run_action magic"
+recipe            "mysql::server", "Installs packages required for mysql servers w/o manual intervention"
+recipe            "mysql::server_ec2", "Performs EC2-specific mountpoint manipulation"
 
-depends          "system-users"
-conflicts        "percona"
-
-%w{centos redhat}.each do |os|
+%w{ debian ubuntu centos suse fedora redhat scientific amazon freebsd windows }.each do |os|
   supports os
 end
 
-grouping 'mysql/server/replication',
-  :title => "MySQL Replication Options",
-  :description => "Describe MySQL replication settings below."
+depends "openssl"
+depends "windows"
 
-attribute 'mysql/server/replication/role',
-  :display_name => "MySQL Replication Role",
-  :description => "Describes what role the MySQL machine is set to (slave/master/dualmaster)",
-  :choice => [ 'slave', 'master', 'standalone', 'dualmaster' ],
-  :type => "string",
-  :required => "recommended",
-  :recipes => [ 'mysql::master', 'mysql::slave', 'mysql::dualmaster' ],
-  :default => "standalone"
+attribute "mysql/server_root_password",
+  :display_name => "MySQL Server Root Password",
+  :description => "Randomly generated password for the mysqld root user",
+  :default => "randomly generated"
 
-attribute 'mysql/server/replication/user',
-  :display_name => "MySQL Replication User",
-  :description => "Username that should be created and used on a master server for replication.",
-  :type => "string",
-  :required => "optional",
-  :recipes => [ 'mysql::master', 'mysql::slave', 'mysql::dualmaster' ],
-  :default => "replication"
+attribute "mysql/bind_address",
+  :display_name => "MySQL Bind Address",
+  :description => "Address that mysqld should listen on",
+  :default => "ipaddress"
 
-attribute 'mysql/server/replication/password',
-  :display_name => "MySQL Replication Password",
-  :description => "Password for connecting to a master server with the replication user.",
-  :type => "string",
-  :required => "required",
-  :recipes => [ 'mysql::master', 'mysql::slave', 'mysql::dualmaster' ]
-
-attribute 'mysql/server/replication/id',
-  :display_name => "MySQL server ID",
-  :description => "The 'server-id' configuration setting set for each machine in a specific cluster.",
-  :type => "string",
-  :calculated => true,
-  :required => "optional"
-
-attribute 'mysql/server/replication/autoincrementincrement',
-  :display_name => "MySQL 'auto_increment_increment'",
-  :description => "The 'auto_increment_increment' configuration setting set for each machine in
- a specific cluster.",
-  :type => "string",
-  :calculated => true,
-  :required => "optional"
-
-attribute 'mysql/server/replication/autoincrementoffset',
-  :display_name => "MySQL 'auto_increment_offset'",
-  :description => "The 'auto_increment_offset' configuration setting set for each machine in
- a specific cluster.",
-  :type => "string",
-  :calculated => true,
-  :required => "optional"
-
-attribute 'mysql/server/replication/log_file',
-  :display_name => "MySQL master log file",
-  :description => "Last recorded MySQL master log file.",
-  :type => "string",
-  :calculated => true,
-  :required => "optional"
-
-attribute 'mysql/server/replication/log_pos',
-  :display_name => "MySQL master log position",
-  :description => "Last recorded MySQL master log position.",
-  :type => "string",
-  :calculated => true,
-  :required => "optional"
-
-grouping 'mysql/server',
-  :title => "General MySQL Options",
-  :description => "Describe general MySQL options below."
-
-attribute 'mysql/server/datadir',
-  :display_name => "MySQL data directory",
-  :description => "Where your MySQL databases live.",
-  :type => "string",
-  :required => "optional",
-  :recipes => [ 'mysql::server' ],
+attribute "mysql/data_dir",
+  :display_name => "MySQL Data Directory",
+  :description => "Location of mysql databases",
   :default => "/var/lib/mysql"
 
-attribute 'mysql/server/logdir',
-  :display_name => "MySQL log directory",
-  :description => "Where your MySQL logs are stored.",
-  :type => "string",
-  :required => "optional",
-  :recipes => [ 'mysql::server' ],
-  :default => "/var/log/mysql"
+attribute "mysql/conf_dir",
+  :display_name => "MySQL Conf Directory",
+  :description => "Location of mysql conf files",
+  :default => "/etc/mysql"
 
-attribute 'mysql/server/bindaddress',
-  :display_name => "MySQL bind address",
-  :description => "Which IP address MySQL will bind to.",
-  :type => "string",
-  :required => "recommended",
-  :recipes => [ 'mysql::server' ],
-  :default => "127.0.0.1"
+attribute "mysql/ec2_path",
+  :display_name => "MySQL EC2 Path",
+  :description => "Location of mysql directory on EC2 instance EBS volumes",
+  :default => "/mnt/mysql"
+
+attribute "mysql/tunable",
+  :display_name => "MySQL Tunables",
+  :description => "Hash of MySQL tunable attributes",
+  :type => "hash"
+
+attribute "mysql/tunable/key_buffer",
+  :display_name => "MySQL Tuntable Key Buffer",
+  :default => "250M"
+
+attribute "mysql/tunable/max_connections",
+  :display_name => "MySQL Tunable Max Connections",
+  :default => "800"
+
+attribute "mysql/tunable/wait_timeout",
+  :display_name => "MySQL Tunable Wait Timeout",
+  :default => "180"
+
+attribute "mysql/tunable/net_read_timeout",
+  :display_name => "MySQL Tunable Net Read Timeout",
+  :default => "30"
+
+attribute "mysql/tunable/net_write_timeout",
+  :display_name => "MySQL Tunable Net Write Timeout",
+  :default => "30"
+
+attribute "mysql/tunable/back_log",
+  :display_name => "MySQL Tunable Back Log",
+  :default => "128"
+
+attribute "mysql/tunable/table_cache",
+  :display_name => "MySQL Tunable Table Cache for MySQL < 5.1.3",
+  :default => "128"
+
+attribute "mysql/tunable/table_open_cache",
+  :display_name => "MySQL Tunable Table Cache for MySQL >= 5.1.3",
+  :default => "128"
+
+attribute "mysql/tunable/max_heap_table_size",
+  :display_name => "MySQL Tunable Max Heap Table Size",
+  :default => "32M"
+
+attribute "mysql/tunable/expire_logs_days",
+  :display_name => "MySQL Exipre Log Days",
+  :default => "10"
+
+attribute "mysql/tunable/max_binlog_size",
+  :display_name => "MySQL Max Binlog Size",
+  :default => "100M"
+
+attribute "mysql/client",
+  :display_name => "MySQL Connector/C Client",
+  :description => "Hash of MySQL client attributes",
+  :type => "hash"
+
+attribute "mysql/client/version",
+  :display_name => "MySQL Connector/C Version",
+  :default => "6.0.2"
+
+attribute "mysql/client/arch",
+  :display_name => "MySQL Connector/C Architecture",
+  :default => "win32"
+
+attribute "mysql/client/package_file",
+  :display_name => "MySQL Connector/C Package File Name",
+  :default => "mysql-connector-c-6.0.2-win32.msi"
+
+attribute "mysql/client/url",
+  :display_name => "MySQL Connector/C Download URL",
+  :default => "http://www.mysql.com/get/Downloads/Connector-C/mysql-connector-c-6.0.2-win32.msi/from/http://mysql.mirrors.pair.com/"
+
+attribute "mysql/client/package_name",
+  :display_name => "MySQL Connector/C Registry DisplayName",
+  :default => "MySQL Connector C 6.0.2"
+
+attribute "mysql/client/basedir",
+  :display_name => "MySQL Connector/C Base Install Directory",
+  :default => "C:\\Program Files (x86)\\MySQL\\Connector C 6.0.2"
+
+attribute "mysql/client/lib_dir",
+  :display_name => "MySQL Connector/C Library Directory (containing libmysql.dll)",
+  :default => "C:\\Program Files (x86)\\MySQL\\Connector C 6.0.2\\lib\\opt"
+
+attribute "mysql/client/bin_dir",
+  :display_name => "MySQL Connector/C Executable Directory",
+  :default => "C:\\Program Files (x86)\\MySQL\\Connector C 6.0.2\\bin"
+
+attribute "mysql/client/ruby_dir",
+  :display_name => "Ruby Executable Directory which should gain MySQL support",
+  :default => "system ruby"

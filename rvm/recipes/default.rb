@@ -2,7 +2,7 @@
 # Cookbook Name:: rvm
 # Recipe:: default
 #
-# Copyright 2010, Blue Box Group, LLC
+# Copyright 2010, 2011, Fletcher Nichol
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,61 +17,24 @@
 # limitations under the License.
 #
 
-include_recipe "build-essential"
+# install rvm api gem during chef compile phase
+gem_package 'rvm' do
+  action :nothing
+end.run_action(:install)
 
-packages = case node[:platform]
-  when "centos","redhat","fedora"
-    %w{gcc-c++ patch zlib-devel openssl-devel readline-devel libyaml-devel libffi-devel git}
-  when "ubuntu","debian"
-    %w{bison openssl libreadline5 libreadline-dev curl git-core zlib1g zlib1g-dev libssl-dev libsqlite3-0 libsqlite3-dev sqlite3 libxml2-dev}
-  end
-  
-packages.each do |pkg|
-  package pkg
+require 'rubygems'
+Gem.clear_paths
+require 'rvm'
+create_rvm_shell_chef_wrapper
+create_rvm_chef_user_environment
+
+class Chef::Resource
+  # mix in #rvm_cmd_wrap helper into resources
+  include Chef::RVM::ShellHelpers
 end
 
-bash "rvm-install" do
-  user "root"
-  cwd "/tmp"
-  code <<-EOH
-    wget --no-check-certificate http://www.github.com/wayneeseguin/rvm/raw/master/contrib/install-system-wide
-    bash install-system-wide
-    rm install-system-wide
-  EOH
-  not_if "[[ -x /usr/local/bin/rvm ]]"
-end
-
-cookbook_file "/etc/profile.d/rvm.sh" do
-  source "rvm.sh"
-  path "/etc/profile.d/rvm.sh"
-  owner "root"
-  group "root"
-  mode 0755
-  backup false
-end
-
-cookbook_file "/etc/rvmrc" do
-  source "rvmrc"
-  path "/etc/rvmrc"
-  owner "root"
-  group "rvm"
-  mode 0664
-  backup false
-end  
-  
-node[:rvm][:rubies].each do |ruby|
-  execute "rvm-install-#{ruby}" do
-    # Install our various ruby versions.
-    command "/usr/local/bin/rvm install #{ruby}"
-    user "root"
-    # Unless we already have that version installed.
-    not_if "/usr/local/bin/rvm list | grep #{ruby}"
-  end
-end
-
-execute "rvm-set-default" do
-  # Set our default ruby install.
-  command "/usr/local/bin/rvm --default #{node[:rvm][:default]}"
-  # Unless the version is already set.
-  not_if "/usr/local/bin/rvm list default | grep #{node[:rvm][:default]}"
+class Chef::Recipe
+  # mix in recipe helpers
+  include Chef::RVM::RecipeHelpers
+  include Chef::RVM::StringHelpers
 end

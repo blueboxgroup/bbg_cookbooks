@@ -1,7 +1,0 @@
-<%= @logdir %>/log-slow-queries.log {
-  rotate 14
-  daily
-  missingok
-  compress
-  copytruncate
-}
