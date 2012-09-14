@@ -1,8 +1,8 @@
 #
 # Cookbook Name:: mysql
-# Recipe:: server
+# Recipe:: default
 #
-# Copyright 2010, Blue Box Group, LLC
+# Copyright 2008-2011, Opscode, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,114 +17,162 @@
 # limitations under the License.
 #
 
+::Chef::Recipe.send(:include, Opscode::OpenSSL::Password)
+
 include_recipe "mysql::client"
-include_recipe "system-users::mysql"
 
-template "/etc/init.d/mysql" do
-  source "mysql-init.erb"
-  owner "root"
-  group "root"
-  mode "0755"
-  backup false
-end
+# generate all passwords
+node.set_unless['mysql']['server_debian_password'] = secure_password
+node.set_unless['mysql']['server_root_password']   = secure_password
+node.set_unless['mysql']['server_repl_password']   = secure_password
 
-directory node[:mysql][:server][:datadir] do
-  owner "mysql"
-  group "mysql"
-  mode "0755"
-  recursive true
-  action :create
-end
+if platform?(%w{debian ubuntu})
 
-directory node[:mysql][:server][:logdir] do
-  owner "mysql"
-  group "mysql"
-  mode "0755"
-  recursive true
-  action :create
-end
-
-directory "/var/run/mysql" do
-  owner "mysql"
-  group "mysql"
-  mode "0755"
-  action :create
-end
-
-# Assign the proper values to our configuration based on total memory in system.
-if node[:memory][:total].to_i >= 16000000
-  table_cache = "1024"
-  thread_cache = "256"
-  innodb_buffer_pool_size = "11G"
-  innodb_additional_mem_pool_size = "20M"
-elsif node[:memory][:total].to_i >= 8000000
-  table_cache = "1024"
-  thread_cache = "256"
-  innodb_buffer_pool_size = "5G"
-  innodb_additional_mem_pool_size = "20M"
-elsif node[:memory][:total].to_i >= 4000000
-  table_cache = "512"
-  thread_cache = "128"
-  innodb_buffer_pool_size = "2G"
-  innodb_additional_mem_pool_size = "10M"
-elsif node[:memory][:total].to_i >= 2000000
-  table_cache = "256"
-  thread_cache = "64"
-  innodb_buffer_pool_size = "1G"
-  innodb_additional_mem_pool_size = "4M"
-else
-  table_cache = "128"
-  thread_cache = "32"
-  innodb_buffer_pool_size = "512M"
-  innodb_additional_mem_pool_size = "2M"
-end
-
-template "/etc/my.cnf" do
-  source "my.cnf"
-  variables(
-    :table_cache => table_cache,
-    :thread_cache => thread_cache,
-    :innodb_buffer_pool_size => innodb_buffer_pool_size,
-    :innodb_additional_mem_pool_size => innodb_additional_mem_pool_size
-  )
-  backup false
-end
-
-case node[:platform]
-when "centos","redhat","fedora"
-  bash "mysql-fetch-server" do
-    user "root"
-    cwd "/tmp"
-    code <<-EOH
-    (cd /tmp; wget http://mirror.services.wisc.edu/mysql/Downloads/MySQL-5.1/MySQL-server-community-5.1.51-1.rhel5.x86_64.rpm)
-    EOH
-    not_if "test -f /tmp/MySQL-server-community-5.1.51-1.rhel5.x86_64.rpm"
+  directory "/var/cache/local/preseeding" do
+    owner "root"
+    group node['mysql']['root_group']
+    mode 0755
+    recursive true
   end
-  
-  bash "mysql-install-server" do
-    user "root"
-    cwd "/tmp"
-    code <<-EOH
-    (cd /tmp; rpm -Uvh MySQL-server-community-5.1.51-1.rhel5.x86_64.rpm)
-    EOH
-    not_if "rpm -qa | grep 'MySQL-server-community-5.1.51'"
+
+  execute "preseed mysql-server" do
+    command "debconf-set-selections /var/cache/local/preseeding/mysql-server.seed"
+    action :nothing
   end
-when "debian","ubuntu"
-  packages = %w{mysql-server}
-  packages.each do |pkg|
-    package pkg
+
+  template "/var/cache/local/preseeding/mysql-server.seed" do
+    source "mysql-server.seed.erb"
+    owner "root"
+    group node['mysql']['root_group']
+    mode "0600"
+    notifies :run, resources(:execute => "preseed mysql-server"), :immediately
+  end
+
+  template "#{node['mysql']['conf_dir']}/debian.cnf" do
+    source "debian.cnf.erb"
+    owner "root"
+    group node['mysql']['root_group']
+    mode "0600"
+  end
+
+end
+
+if platform? 'windows'
+  package_file = node['mysql']['package_file']
+
+  remote_file "#{Chef::Config[:file_cache_path]}/#{package_file}" do
+    source node['mysql']['url']
+    not_if { File.exists? "#{Chef::Config[:file_cache_path]}/#{package_file}" }
+  end
+
+  windows_package node['mysql']['package_name'] do
+    source "#{Chef::Config[:file_cache_path]}/#{package_file}"
+  end
+
+  def package(*args, &blk)
+    windows_package(*args, &blk)
+  end
+end
+
+package node['mysql']['package_name'] do
+  action :install
+end
+
+directory node['mysql']['confd_dir'] do
+  owner "mysql" unless platform? 'windows'
+  group "mysql" unless platform? 'windows'
+  action :create
+  recursive true
+end
+
+if platform? 'windows'
+  require 'win32/service'
+
+  windows_path node['mysql']['bin_dir'] do
+    action :add
+  end
+
+  windows_batch "install mysql service" do
+    command "\"#{node['mysql']['bin_dir']}\\mysqld.exe\" --install #{node['mysql']['service_name']}"
+    not_if { Win32::Service.exists?(node['mysql']['service_name']) }
   end
 end
 
 service "mysql" do
+  service_name node['mysql']['service_name']
+  if node['mysql']['use_upstart']
+    restart_command "restart mysql"
+    stop_command "stop mysql"
+    start_command "start mysql"
+  end
   supports :status => true, :restart => true, :reload => true
-  action [ :enable, :start ]
+  action :nothing
 end
 
-template "/etc/logrotate.d/mysql_slowqueries" do
-  source "mysql-server-logrotate"
-  owner "root"
-  group "root"
+skip_federated = case node['platform']
+                 when 'fedora', 'ubuntu', 'amazon'
+                   true
+                 when 'centos', 'redhat', 'scientific'
+                   node['platform_version'].to_f < 6.0
+                 else
+                   false
+                 end
+
+template "#{node['mysql']['conf_dir']}/my.cnf" do
+  source "my.cnf.erb"
+  owner "root" unless platform? 'windows'
+  group node['mysql']['root_group'] unless platform? 'windows'
   mode "0644"
-  backup false
+  notifies :restart, resources(:service => "mysql"), :immediately
+  variables :skip_federated => skip_federated
+end
+
+unless Chef::Config[:solo]
+  ruby_block "save node data" do
+    block do
+      node.save
+    end
+    action :create
+  end
+end
+
+# set the root password on platforms
+# that don't support pre-seeding
+unless platform?(%w{debian ubuntu})
+
+  execute "assign-root-password" do
+    command "\"#{node['mysql']['mysqladmin_bin']}\" -u root password \"#{node['mysql']['server_root_password']}\""
+    action :run
+    only_if "\"#{node['mysql']['mysql_bin']}\" -u root -e 'show databases;'"
+  end
+
+end
+
+grants_path = node['mysql']['grants_path']
+
+begin
+  t = resources("template[#{grants_path}]")
+rescue
+  Chef::Log.info("Could not find previously defined grants.sql resource")
+  t = template grants_path do
+    source "grants.sql.erb"
+    owner "root" unless platform? 'windows'
+    group node['mysql']['root_group'] unless platform? 'windows'
+    mode "0600"
+    action :create
+  end
+end
+
+if platform? 'windows'
+  windows_batch "mysql-install-privileges" do
+    command "\"#{node['mysql']['mysql_bin']}\" -u root #{node['mysql']['server_root_password'].empty? ? '' : '-p' }\"#{node['mysql']['server_root_password']}\" < \"#{grants_path}\""
+    action :nothing
+    subscribes :run, resources("template[#{grants_path}]"), :immediately
+  end
+else
+  execute "mysql-install-privileges" do
+    command "\"#{node['mysql']['mysql_bin']}\" -u root #{node['mysql']['server_root_password'].empty? ? '' : '-p' }\"#{node['mysql']['server_root_password']}\" < \"#{grants_path}\""
+    action :nothing
+    subscribes :run, resources("template[#{grants_path}]"), :immediately
+  end
 end
