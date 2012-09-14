@@ -2,7 +2,7 @@
 # Cookbook Name:: chef-client
 # Recipe:: default
 #
-# Copyright 2010, Blue Box Group, LLC
+# Copyright 2010, Opscode, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,53 +17,4 @@
 # limitations under the License.
 #
 
-gem_packages = [ "chef" ]
-
-gem_packages.each do |gempkg|
-  gem_package "#{gempkg}" do
-    action :install
-  end
-end
-
-directory "/var/log/chef" do
-  mode "0755"
-  owner "root"
-  group "root"
-  action :create
-end
-
-directory "/etc/chef" do
-  mode "0755"
-  owner "root"
-  group "root"
-  action :create
-end
-
-cookbook_file "/etc/init.d/chef-client" do
-  source "chef-client-initd"
-  mode "0755"
-  owner "root"
-  group "root"
-  action :create
-end
-
-cookbook_file "/etc/sysconfig/chef-client" do
-  source "chef-client-sysconfig"
-  mode "0644"
-  owner "root"
-  group "root"
-  action :create
-end
-
-cookbook_file "/etc/logrotate.d/chef-client" do
-  source "chef-client-logrotated"
-  mode "0644"
-  owner "root"
-  group "root"
-  action :create
-end
-
-service "chef-client" do
-  supports :status => true, :restart => true
-  action [ :enable, :start ]
-end
+include_recipe "chef-client::service"
