@@ -2,7 +2,7 @@
 # Cookbook Name:: git
 # Recipe:: default
 #
-# Copyright 2010, Blue Box Group, LLC
+# Copyright 2011, Blue Box Group, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,11 @@
 # limitations under the License.
 #
 
-package "git" do
-  action :install
+case node[:platform]
+when "centos","redhat","scientific"
+  yum_package "git" do
+    arch node[:kernel][:machine]
+  end
+when "ubuntu","debian"
+  apt_package "git-core"
 end
