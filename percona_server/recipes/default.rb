@@ -1,8 +1,8 @@
 #
-# Cookbook Name:: percona
-# Recipe:: client
+# Cookbook Name:: percona_server
+# Recipe:: default
 #
-# Copyright 2010, Blue Box Group, LLC
+# Copyright 2011, Blue Box Group, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,9 +17,4 @@
 # limitations under the License.
 #
 
-case node[:platform]
-when "centos","redhat","fedora"
-  package "Percona-Server-client-51" do
-    action :install
-  end
-end
+include_recipe "percona_server::client"

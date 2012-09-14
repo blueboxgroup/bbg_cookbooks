@@ -1,0 +1,12 @@
+description     "Percona MySQL Server"
+
+start on filesystem
+stop on shutdown
+
+pre-start script
+  mkdir -p /var/run/mysql
+  chown mysql /var/run/mysql
+end script
+
+chdir /usr
+exec ./bin/mysqld_safe
