@@ -1,108 +1,122 @@
-#
-# Cookbook Name:: redis
-# Recipe:: default
-#
-# Copyright 2010, Blue Box Group, LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-
-# Make sure we can build Redis from source.
 include_recipe "build-essential"
+include_recipe "blocks_firewall"
 
-# Create the redis group.
-group "redis" do
-  action :create
-end
-
-# Create the redis user.
 user "redis" do
   comment "Redis Administrator"
   system true
   shell "/sbin/nologin"
 end
 
-# Create the root of our installation.
 directory "#{node[:redis][:dir]}" do
   owner "redis"
-  group "redis"
+  #group "redis" # See issue below.
   mode "0755"
-  action :create
 end
 
 # Create the rest of the directories.
 node[:redis][:dirs].each do |dir|
-  unless File.directory? dir
-    directory dir do
+  unless File.directory? node[:redis][:dir] + "/" + dir
+    directory node[:redis][:dir] + "/" + dir do
       owner "redis"
-      group "redis"
+      #group "redis" # See issue below.
       mode "0755"
       recursive true
-      action :create
     end
   end
 end
+  
+# Unfortunately we're hitting a bug in Chef that they've yet to resolve. This means we can't use the 'group' attribute to set proper ownership
+# on the directories we created above. We'll have to use this until the resolve the issue.
+# Bug report: http://tickets.opscode.com/browse/CHEF-1699
+execute "chown-redis-dir" do
+  user "root"
+  command "chown redis:redis #{node[:redis][:dir]}"
+end
+  
+node[:redis][:dirs].each do |dir|
+  execute "chown-redis-#{dir}" do
+    user "root"
+    command "chown redis:redis #{node[:redis][:dir]}/#{dir}"
+  end
+end
 
-# Grab the tarball for our specified version.
 remote_file "/tmp/redis-#{node[:redis][:version]}.tar.gz" do
   source "http://redis.googlecode.com/files/redis-#{node[:redis][:version]}.tar.gz"
   backup false
   action :create_if_missing
+  not_if "#{node[:redis][:dir]}/bin/redis-server --version | grep #{node[:redis][:version]}" # Don't download if we already have this version installed.
 end
 
-# Compile redis.
 bash "compile-redis" do
   cwd "/tmp"
   code <<-EOH
     tar zxf redis-#{node[:redis][:version]}.tar.gz
     cd redis-#{node[:redis][:version]} && make
   EOH
-  not_if "test -x #{node[:redis][:dir]}/bin/redis-server"
+  not_if "#{node[:redis][:dir]}/bin/redis-server --version | grep #{node[:redis][:version]}" # Don't compile if we already have this version installed.
 end
 
-# Move our binaries to the specified redis directory.
-node[:redis][:binaries].each do |bin|
-  execute "installing-#{bin}" do
-    user "root"
-    command "cp -a /tmp/redis-#{node[:redis][:version]}/#{bin} #{node[:redis][:dir]}/bin/#{bin}"
-    creates "#{node[:redis][:dir]}/bin/#{bin}"
+ruby_block "installing-binaries" do
+  block do
+    node[:redis][:binaries].each do |bin|
+      if File.exist?(node[:redis][:dir] + "/bin/" + bin) # If destination binary exists, then we need to compare our fresh compile w/ what's there.
+        unless File.read("/tmp/redis-#{node[:redis][:version]}/src/#{bin}") == File.read("#{node[:redis][:dir]}/bin/#{bin}") # Unless the files are the same...
+          system("cp -a /tmp/redis-#{node[:redis][:version]}/src/#{bin} #{node[:redis][:dir]}/bin/#{bin}") # Copy them over.
+        end
+      else 
+        system("cp -a /tmp/redis-#{node[:redis][:version]}/src/#{bin} #{node[:redis][:dir]}/bin/#{bin}") # These were safe to move w/o comparing.
+      end
+    end
   end
-end
+end 
 
 # Create profile.d script to add redis directory to $PATH.
 template "/etc/profile.d/redis.sh" do
-  source "redis.sh"
-  mode "0755"
-  backup false
-  not_if "echo $PATH | grep '#{node[:redis][:dir]}/bin'"
-end
-
-# Create init script.
-template "/etc/init.d/redis-server" do
-  source "redis-init"
+  owner "root"
+  group "root"
+  source "redis.sh.erb"
   mode "0755"
   backup false
 end
 
-# Define our new service.
-service "redis-server" do
-  supports :start => true, :stop => true, :restart => true
-  action :nothing
+#  setup and start init per platform
+case node[:platform]
+when "centos","redhat","scientific"
+  template "/etc/init.d/redis-server" do
+    owner "root"
+    group "root"
+    source "redis-init.erb"
+    mode "0755"
+    backup false
+  end
+  
+  service "redis-server" do
+    supports :start => true, :stop => true, :restart => true
+    action :enable
+  end
+when "ubuntu"
+  template "/etc/init/redis-server.conf" do
+    owner "root"
+    group "root"
+    source "redis-upstart.conf.erb"
+    mode "0755"
+    backup false
+  end
+  
+  link "/etc/init.d/redis-server" do
+    to "/lib/init/upstart-job"
+  end
+  
+  service "redis-server" do
+    provider Chef::Provider::Service::Upstart
+    supports :status => true, :restart => true, :reload => true
+    action [ :enable, :start ]
+  end
 end
 
 # Create configuration file.
 template "#{node[:redis][:dir]}/etc/redis.conf" do
-  source "redis.conf"
+  source "redis.conf.erb"
   mode "0644"
   backup false
   notifies :restart, "service[redis-server]", :immediately

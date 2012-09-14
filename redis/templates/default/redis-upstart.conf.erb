@@ -1,0 +1,10 @@
+description "redis-server"
+
+start on startup
+stop on shutdown
+
+expect fork
+
+exec sudo -u redis <%= node[:redis][:dir] %>/bin/redis-server <%= node[:redis][:dir] %>/etc/redis.conf
+
+respawn
