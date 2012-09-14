@@ -1,8 +1,7 @@
-#
-# Cookbook Name:: memcached
+# Cookbook Name:: git
 # Recipe:: default
 #
-# Copyright 2010, Blue Box Group, LLC
+# Copyright 2011, Blue Box Group, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,31 +14,32 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-packages = [ "memcached" ]
+memcached_package = "memcached"
 
-cache_size = ((node[:memory][:total] * 0.9375) / 1024) / 1024
-
-packages.each do |pkg|
-  package "#{pkg}" do
-    action :install
+case node[:platform]
+when "centos","redhat","fedora","scientific"
+  yum_package memcached_package do
+    arch node[:kernel][:machine]
   end
+when "debian","ubuntu"
+  apt_package memcached_package
+end
+
+template "memcached" do
+  case node[:platform]
+  when "centos","redhat","fedora","scientific"
+    path "/etc/sysconfig/memcached"
+    source "memcached.erb"
+  when "debian","ubuntu"
+    path "/etc/memcached.conf"
+    source "memcached.conf.erb"
+  end
+  backup false
+  notifies :restart, "service[memcached]", :immediately
 end
 
 service "memcached" do
-  supports :status => true, :restart => true, :reload => true
+  supports :start => true, :stop => true, :restart => true
   action [ :enable, :start ]
-end
-
-template "/etc/sysconfig/memcached" do
-  source "memcached.erb"
-  mode 0644
-  owner "root"
-  group "root"
-  variables(
-    :cache_size => cache_size
-  )
-  action :create
-  notifies :restart, "service[memcached]"
 end
