@@ -1,0 +1,140 @@
+# This MySQL configuration file is meant to be a generic "starting point" for a
+# well-tuned MySQL installation.  Additional changes may be required depending
+# on the specifics of your database usage.
+# Must ensure that all file paths will allow mysql to perform the relevant file operations 
+# (read, write, etc) 
+[client]
+port            = 3306
+socket          = /var/lib/mysql/mysql.sock
+
+[mysqld]
+user=mysql
+port            = 3306
+basedir=/usr
+datadir=<%= node[:percona_server][:datadir] %>
+pid-file=/var/run/mysql/mysqld.pid
+socket          = /var/lib/mysql/mysql.sock
+character-set-server = utf8
+
+skip-name-resolve
+skip-show-database
+max_allowed_packet = 1M
+
+# Uncomment this to prevent listening on a TCP/IP port at all.
+# This can be a security enhancement, if all processes that need to connect
+# to mysqld run on the same host.  All interaction with mysqld must be made
+# via Unix sockets.
+#
+#skip-networking
+
+# Bind to this ip address.  Comment out for "all interfaces."
+bind-address=<%= node[:percona_server][:bind_address] %>
+
+# This should be unique across all servers in a replication set-up
+# For vslices, we use the veid, for hosts, the numeric part of the hostname
+# (unfortunately, this may clash at sometime in the future, so be aware of
+# that possibility)
+#server-id = CHANGE_ME
+
+#  For master replication, uncomment the following lines.
+#log-bin = <%= node[:percona_server][:logbin] %>
+#log-bin-index = <%= node[:percona_server][:logbinindex] %>
+#expire-logs-days = 10
+#max_binlog_size = 104857600
+#log-slave-updates
+#sync_binlog=100
+# For fastest albeit least-tolerant-of-crashes master, use this instead:
+#sync_binlog=0
+# This must be the same across all master in the cluster, and >= the number of master servers.
+#auto_increment_increment=10
+# This should be unique across all masters in the cluster, and less than auto_increment_increment
+#auto_increment_offset=2
+
+# For a slave or dual-master, uncomment the following lines.
+#relay-log = <%= node[:percona_server][:relaylog] %>
+#relay-log-index = <%= node[:percona_server][:relaylogindex] %>
+#relay-log-info-file = <%= node[:percona_server][:relayloginfofile] %>
+# You will often also want this:
+#replicate-ignore-db = mysql
+
+# For a slave, uncomment this line.
+#read_only = 1
+
+<% if node[:percona_server][:host_type] == "dedicated" %>
+key_buffer = 16M
+query_cache_size=32M
+sort_buffer_size = 1M
+max_heap_table_size = 32M
+query_cache_type=1
+tmp_table_size = 32M
+read_buffer_size = 2M
+read_rnd_buffer_size = 8M
+myisam_sort_buffer_size = 8M
+innodb_log_buffer_size = 10M
+<% else %>
+#key_buffer = 16M
+#query_cache_size=32M
+#sort_buffer_size = 1M
+#max_heap_table_size = 32M
+#query_cache_type=1
+#tmp_table_size = 32M
+#read_buffer_size = 2M
+#read_rnd_buffer_size = 8M
+#myisam_sort_buffer_size = 8M
+#innodb_log_buffer_size = 10M
+<% end %>
+
+# Other general "good idea" settings:
+max_connections = 2000
+interactive_timeout = 36000
+wait_timeout=36000
+connect_timeout=36000
+# This must be <= the size of your ibdata1 file if it currently exists.
+innodb_data_file_path = ibdata1:128M:autoextend
+innodb_data_home_dir = <%= node[:percona_server][:datadir] %>
+innodb_log_group_home_dir=<%= node[:percona_server][:datadir] %>
+innodb_log_files_in_group=2
+innodb_file_per_table
+# This must match your current log file size if these logs
+# already exist.
+innodb_log_file_size = 128M
+innodb_flush_log_at_trx_commit = 2
+
+<% if node[:percona_server][:host_type] == "dedicated" %>
+thread_concurrency = <%= node[:cpu][:total] %>
+<% else %>
+#thread_concurrency = 2
+<% end %>
+
+<% if node[:percona_server][:host_type] == "dedicated" %>
+table_cache = <%= node[:percona_server][:table_cache] %>
+thread_cache = <%= node[:percona_server][:thread_cache] %>
+innodb_buffer_pool_size = <%= node[:percona_server][:innodb_buffer_pool_size] %>
+innodb_additional_mem_pool_size = <%= node[:percona_server][:innodb_additional_mem_pool_size] %>
+<% else %>
+#table_cache = 128
+#thread_cache = 32
+#innodb_buffer_pool_size = 512M
+#innodb_additional_mem_pool_size = 2M
+<% end %>
+
+# Log slow queries.
+long_query_time=1
+log-slow-queries=/var/log/mysql/log-slow-queries.log
+
+[mysqldump]
+default-character-set = utf8
+quick
+max_allowed_packet = 16M
+
+[mysql]
+default-character-set = utf8
+no-auto-rehash
+
+[mysqlhotcopy]
+default-character-set = utf8
+interactive-timeout
+
+[mysqld_safe]
+default-character-set=utf8
+log-error=/var/log/mysql/mysqld.log

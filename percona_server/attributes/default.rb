@@ -1,0 +1,8 @@
+default[:percona_server][:bind_address] = "127.0.0.1"
+default[:percona_server][:filesystem] = "/srv/data"
+default[:percona_server][:datadir] = "/var/lib/mysql"
+default[:percona_server][:logbin] = "/var/lib/mysql/mysql-bin"
+default[:percona_server][:logbinindex] = "/var/lib/mysql/mysql-bin.index"
+default[:percona_server][:relaylog] = "/var/lib/mysql/slave-relay-bin"
+default[:percona_server][:relaylogindex] = "/var/lib/mysql/slave-relay-bin.index"
+default[:percona_server][:relayloginfofile] = "/var/lib/mysql/slave-relay-bin.info"

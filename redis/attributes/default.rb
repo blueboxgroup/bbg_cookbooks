@@ -1,33 +1,14 @@
-#
-# Cookbook Name:: redis
-# Attributes:: default
-#
-# Copyright 2010, Blue Box Group, LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-
 # Installation requirements.
-default[:redis][:version] = "2.0.3"
+default[:redis][:version] = "2.4.8"
 default[:redis][:dir] = "/usr/local/redis"
-default[:redis][:dirs] = [ "#{default[:redis][:dir]}/bin", "#{default[:redis][:dir]}/etc", "#{default[:redis][:dir]}/log", "/var/run/redis/" ]
-default[:redis][:binaries] = %w(redis-benchmark redis-cli redis-server)
+default[:redis][:dirs] = %w(bin etc log run)
+default[:redis][:binaries] = %w(redis-benchmark redis-cli redis-server redis-check-aof redis-check-dump)
 
 # Configuration requirements.
 default[:redis][:daemonize] = "yes"
-default[:redis][:pidfile] = "/var/run/redis/redis.pid"
+default[:redis][:pidfile] = "#{node[:redis][:dir]}/run/redis.pid"
 default[:redis][:port] = "6379"
-default[:redis][:bind] = "127.0.0.1"
+default[:redis][:bind] = "0.0.0.0"
 default[:redis][:timeout] = "300"
 default[:redis][:loglevel] = "notice"
 default[:redis][:logfile] = "#{default[:redis][:dir]}/log/redis.log"

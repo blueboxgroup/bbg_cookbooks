@@ -1,0 +1,1 @@
+default[:rabbitmq][:rabbitmq_node_ip_address] = "127.0.0.1"
